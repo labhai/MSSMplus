@@ -1,0 +1,49 @@
+BASE_PATH: "" # "/analysis/project/exp_name"
+RESULT_PATH: "" # "/results/project/fwhm"
+INFO_PATH: "" # "/dataset/All/info/info.csv"
+PROJECT: "project"
+DATASETS:
+  - "All"
+#  - "GE"
+#  - "Philips"
+#  - "Siemens"
+
+CANDIDATES:
+  - "010000" # CT
+  - "100000" # GWCs
+  - "110000" # GWCs+CT (MSSM)
+  - "111010" # GWCs+CT+Sulc+Curv (MSSM+)
+
+TRIANGLE_CSV_PATH: "/data/triangle_indices_ico_7_sub_ico_3.csv"
+
+CUDA_DEVICE: 0
+POOLING: "max"
+SEED: 42
+EPOCHS: 400
+PATIENCE: 40
+ISSMOOTHED: false
+
+DATALOADER_CONFIG:
+  batch_size: 16
+  num_workers: 4
+
+MODEL_CONFIG:
+  dim: 48
+  depth: 6
+  heads: 6
+  mlp_dim: 192
+  pool: "cls"
+  num_patches: 2560
+  num_classes: 1
+  num_channels: 1
+  num_vertices: 153
+  dim_head: 8
+  dropout: 0.25
+  emb_dropout: 0.25
+
+OPTIMIZER_CONFIG:
+  lr: 5e-5
+  weight_decay: 1e-2
+TRAIN_SPLIT:
+  cv_folds: 4
+  valid_size: 0.1

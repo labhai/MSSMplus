@@ -1,0 +1,106 @@
+DATA_DIR: "" # "/datasets/All"
+INFO_DIR: "" # "/datasets/All/info"
+INFO_PATH: "" # "/All/info/info.csv"
+RESULTS_DIR: "" # "/results/project/fwhm"
+STATS_DIR: "" # "/results/project/fwhm/stats"
+DATASET_PATH: null
+DATASET_FILE: dataset.pkl
+CORRECTION_FILE: correction.pkl
+N_FEATURES: 13
+N_VERTEX: 327684
+NTH: 1
+SCALER_THRESHOLD: 1
+MAX_WORKERS: 8
+THRESHOLD: 2
+
+PROJECT: "project"
+
+FWHM: 0
+
+ADD: 0
+
+CORRECTION: true
+FEATURE_EXTRACTION_METHOD: "PLS"
+REDUCTION_FILE: "reduction.pkl"
+FEATURE_EXTRACTION_DIR: "MSSM"
+RESULT_TYPE: ".mssm"
+
+THICK_PREFIX: "surf/reg_surf2fsaverage"
+GWR_PREFIX: "mri/GWC/reg_surf2fsaverage"
+CAND_PREFIX: "surf"
+STAT_FILE: "stat.txt"
+
+CORRECTION_DIMENSIONS:
+- 1 # GWCs
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1
+- 1 # CT
+- 1 # Sulc
+- 1 # Jacobian
+- 1 # Curv
+- 1 # LGI
+
+WEIGHTS_DIR: "/datasets/All/Age_Correction/weights"
+
+MSSM_CANDIDATES:
+  - "100110"
+  - "101100"
+  - "101101"
+  - "101110"
+  - "101111"
+  - "111100"
+  - "111101"
+  - "111110"
+  - "111111"
+
+CT_TYPES:
+- lh.thickness
+- rh.thickness
+
+GWR_TYPES:
+- lh_subcortwm-0.5divgm.2.nii.gz
+- rh_subcortwm-0.5divgm.2.nii.gz
+- lh_subcortwm-1divgm.2.nii.gz
+- rh_subcortwm-1divgm.2.nii.gz
+- lh_subcortwm-0.5divgm.4.nii.gz
+- rh_subcortwm-0.5divgm.4.nii.gz
+- lh_subcortwm-1divgm.4.nii.gz
+- rh_subcortwm-1divgm.4.nii.gz
+- lh_subcortwm-0.5divgm.6.nii.gz
+- rh_subcortwm-0.5divgm.6.nii.gz
+- lh_subcortwm-1divgm.6.nii.gz
+- rh_subcortwm-1divgm.6.nii.gz
+- lh_subcortwm-0.5divgm.8.nii.gz
+- rh_subcortwm-0.5divgm.8.nii.gz
+- lh_subcortwm-1divgm.8.nii.gz
+- rh_subcortwm-1divgm.8.nii.gz
+
+CAND_TYPES:
+- "sulc"
+- "pial_lgi"
+- "jacobian_white"
+- "curv"
+
+MEDIALWALL_MASKS:
+- fsaverage/label/lh.Medial_wall.label
+- fsaverage/label/rh.Medial_wall.label
+
+SPLITS:
+- "All"
+
+GROUPS:
+- "AD"
+- "CN"
+
+HEMIS:
+- "lh"
+- "rh"
+
+METHODS:
+- "perm"
+#- "cache"
