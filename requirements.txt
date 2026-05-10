@@ -1,0 +1,10 @@
+numpy
+pandas
+pyyaml
+nibabel
+matplotlib
+scikit-learn
+torch
+einops
+vit-pytorch
+wandb
