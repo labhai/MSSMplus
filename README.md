@@ -28,3 +28,21 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+---
+
+## 📖 BibTeX (to cite our paper)
+
+```bibtex
+@article{baek2026mssmplus,
+  title={Improved Multiscale Structural Mapping with Supervertex Vision Transformer for the Detection of Alzheimer's Disease Neurodegeneration},
+  author={Baek, Geonwoo and Salat, David H. and Jang, Ikbeom and {Alzheimer's Disease Neuroimaging Initiative}},
+  journal={Human Brain Mapping},
+  volume={47},
+  number={8},
+  pages={e70548},
+  year={2026},
+  publisher={Wiley Online Library},
+  doi={10.1002/hbm.70548}
+}
+```
