@@ -13,11 +13,11 @@ This repository contains code for the Supervertex Vision Transformer (SV-ViT) an
 - `data/`
   - `triangle_indices_ico_7_sub_ico_3.csv`: SV maps (concatenated lh and rh hemisphere).
 - `scripts/`
-  - `pls_age_correction.py`: perform MSSM+ procedure (with pls and age correction)
-  - `surf2fsaverage.sh`: map FreeSurfer `sulc` and `curv` to `fsaverage`
-  - `test.sh` `test_0_mssm.sh`: MSSM+ pipeline with group analysis
-  - `train_age_correction_model.py`: code for training age correction models
-  - `train-sv-vit.py`: train and evaluate SV-ViT
+  - `pls_age_correction.py`: perform the MSSM+ procedure with optional age correction.
+  - `surf2fsaverage.sh`: map FreeSurfer `sulc` and `curv` to `fsaverage`.
+  - `test.sh` `test_0_mssm.sh`: MSSM+ pipeline with group analysis.
+  - `train_age_correction_model.py`: train age-correction models.
+  - `train-sv-vit.py`: train and evaluate SV-ViT.
 - `requirements.txt`: minimal Python dependencies.
 
 ---
@@ -50,17 +50,25 @@ pip install -r requirements.txt
 
 ---
 
-## FreeSurfer `sulc`/`curv` to `fsaverage`
+## Map `sulc` and `curv` to `fsaverage`
 
-MSSM+ combines the MSSM gray/white contrast (GWC) maps with morphometry on a common surface. FreeSurfer's `recon-all` creates `lh.sulc`, `rh.sulc`, `lh.curv`, and `rh.curv` in each subject's native surface space. Before MSSM+ reads them, these four files must be resampled through each subject's `sphere.reg` onto `fsaverage`.
+MSSM+ uses one fixed input combination: **MSSM + sulc + curv**. FreeSurfer's `recon-all` produces `sulc` and `curv` in each subject's native surface space, so they must be resampled to the same `fsaverage` space used by MSSM before running MSSM+.
 
-[`scripts/surf2fsaverage.sh`](scripts/surf2fsaverage.sh) performs only that operation. It is a focused version of the local MSSM extension `ext-code-new/run_fsavg_from_recondirs.sh`: unlike that source script, it deliberately does **not** map `jacobian_white`, `pial_lgi`, thickness, or GWC files.
+[`scripts/surf2fsaverage.sh`](scripts/surf2fsaverage.sh) performs only this resampling. It maps:
+
+- `lh.sulc` and `rh.sulc`
+- `lh.curv` and `rh.curv`
+
+It does not process `jacobian_white`, `pial_lgi`, thickness, or GWC files.
 
 ### Requirements
 
-- A completed FreeSurfer `recon-all` subject with `surf/{lh,rh}.sphere.reg`, `surf/{lh,rh}.sulc`, and `surf/{lh,rh}.curv`.
+- A completed FreeSurfer `recon-all` subject.
+- `surf/{lh,rh}.sphere.reg`, `surf/{lh,rh}.sulc`, and `surf/{lh,rh}.curv` in the subject directory.
 - FreeSurfer initialized so that `mri_surf2surf` is on `PATH` and `FREESURFER_HOME` is set.
-- The recon-all subject must be an immediate child of its FreeSurfer `SUBJECTS_DIR`.
+- The subject directory must be an immediate child of its FreeSurfer `SUBJECTS_DIR`.
+
+### Run one subject
 
 ```bash
 export FREESURFER_HOME=/path/to/freesurfer
@@ -70,9 +78,25 @@ bash scripts/surf2fsaverage.sh \
   -r /data/recons/sub-001
 ```
 
-The script sets `SUBJECTS_DIR` from the parent of `-r`. If that directory does not already contain `fsaverage`, it links `$FREESURFER_HOME/subjects/fsaverage`. Existing outputs are skipped; pass `--force` to regenerate them.
+The script derives `SUBJECTS_DIR` from the parent of `-r`. If `SUBJECTS_DIR/fsaverage` does not exist, it links `$FREESURFER_HOME/subjects/fsaverage`. Existing non-empty outputs are skipped; pass `--force` to regenerate them.
 
-Outputs are written beside the native files:
+### Run multiple subjects
+
+```bash
+SUBJECTS_DIR=/data/recons
+for recon_dir in "$SUBJECTS_DIR"/sub-*; do
+  bash scripts/surf2fsaverage.sh -r "$recon_dir"
+done
+```
+
+With GNU Parallel:
+
+```bash
+find /data/recons -mindepth 1 -maxdepth 1 -type d ! -name fsaverage -print0 \
+  | parallel -0 -j 8 bash scripts/surf2fsaverage.sh -r {}
+```
+
+### Outputs
 
 ```text
 /data/recons/sub-001/surf/
@@ -82,23 +106,7 @@ Outputs are written beside the native files:
 └── rh.fsaverage.curv
 ```
 
-Run multiple subjects sequentially:
-
-```bash
-SUBJECTS_DIR=/data/recons
-for recon_dir in "$SUBJECTS_DIR"/sub-*; do
-  bash scripts/surf2fsaverage.sh -r "$recon_dir"
-done
-```
-
-Or, when GNU Parallel is available:
-
-```bash
-find /data/recons -mindepth 1 -maxdepth 1 -type d ! -name fsaverage -print0 \
-  | parallel -0 -j 8 bash scripts/surf2fsaverage.sh -r {}
-```
-
-### Quick output check
+Quick check:
 
 ```bash
 for hemi in lh rh; do
@@ -111,39 +119,39 @@ done
 
 ## End-to-end workflow: MSSM to MSSM+
 
-The two repositories are consecutive stages, not alternatives:
+MSSM+ is the next fixed processing stage after MSSM. The final MSSM+ input is always **MSSM + sulc + curv**.
 
 ```mermaid
 flowchart LR
     A[T1-weighted MRI] --> B[FreeSurfer recon-all]
-    B --> C[MSSM: GWC generation]
-    C --> D[GWC and thickness to fsaverage]
+    B --> C[MSSM preprocessing]
+    C --> D[MSSM maps on fsaverage]
     B --> E[sulc and curv to fsaverage]
-    D --> F[MSSM+: feature selection and vertex-wise PLS]
+    D --> F[Fixed MSSM + sulc + curv integration]
     E --> F
-    F --> G{Age correction?}
-    G -->|yes| H[Age-residualized MSSM+ maps]
+    F --> G{Apply age correction?}
+    G -->|yes| H[Age-corrected MSSM+ maps]
     G -->|no| I[Uncorrected MSSM+ maps]
-    H --> J[Surface GLM or SV-ViT]
+    H --> J[Surface statistics or SV-ViT]
     I --> J
 ```
 
-The public source repositories are [jibikbam/MSSM](https://github.com/jibikbam/MSSM) and [labhai/MSSMplus](https://github.com/labhai/MSSMplus).
+The source repositories are [jibikbam/MSSM](https://github.com/jibikbam/MSSM) and [labhai/MSSMplus](https://github.com/labhai/MSSMplus).
 
 ### 1. Run FreeSurfer
 
-All subjects must use the same FreeSurfer version and the same `fsaverage` template.
+Use the same FreeSurfer version and `fsaverage` template for every subject.
 
 ```bash
 export SUBJECTS_DIR=/data/recons
 recon-all -sd "$SUBJECTS_DIR" -s sub-001 -i /data/T1/sub-001_T1w.nii.gz -all
 ```
 
-Do FreeSurfer QC before continuing. At minimum, confirm that `recon-all` completed and that both hemispheres have `white`, `pial`, `sphere.reg`, `thickness`, `sulc`, and `curv` files.
+Complete FreeSurfer QC before continuing. Both hemispheres must contain at least `white`, `pial`, `sphere.reg`, `thickness`, `sulc`, and `curv`.
 
-### 2. Run MSSM preprocessing
+### 2. Run MSSM
 
-From the MSSM repository's `code/` directory, `mssm.sh` generates the multi-depth GWC maps, maps GWC and thickness to `fsaverage`, optionally creates smoothed copies, and checks the result.
+From the MSSM repository's `code/` directory:
 
 ```bash
 cd /path/to/MSSM/code
@@ -154,10 +162,10 @@ The arguments are:
 
 1. FreeSurfer `SUBJECTS_DIR`.
 2. Available logical CPU count. The current MSSM shell implementation should be given at least 14.
-3. Subject-name shell pattern; quote it so the calling shell does not expand it early.
-4. Surface smoothing FWHM in millimetres.
+3. Subject-name shell pattern. Quote it to prevent early expansion by the calling shell.
+4. Surface-smoothing FWHM in millimetres.
 
-For the default MSSM+ prefixes below, the important unsmoothed outputs are:
+MSSM generates the GWC-derived inputs and registered thickness used to construct the MSSM representation. The important unsmoothed outputs are:
 
 ```text
 <subject>/mri/GWC/reg_surf2fsaverage/<GWC files>
@@ -165,11 +173,11 @@ For the default MSSM+ prefixes below, the important unsmoothed outputs are:
 <subject>/surf/reg_surf2fsaverage/rh.thickness
 ```
 
-MSSM also writes `reg_surf2fsaverage_smoothed<FWHM>mm` directories. Use those only if the MSSM+ prefixes are changed accordingly. The usual MSSM+ flow reads unsmoothed inputs and applies `FWHM` after producing the combined map, avoiding accidental double smoothing.
+MSSM also creates `reg_surf2fsaverage_smoothed<FWHM>mm` directories. The same smoothing policy must be used for all subjects, and inputs must not be smoothed twice.
 
-### 3. Add `sulc` and `curv`
+### 3. Map `sulc` and `curv`
 
-Run the script in the previous section for every recon-all subject. After steps 2 and 3, a subject consumed by the default MSSM+ configuration has this minimum layout:
+Run `scripts/surf2fsaverage.sh` for every recon-all subject. After MSSM and surface mapping, each subject must provide:
 
 ```text
 <subject>/
@@ -186,17 +194,17 @@ Run the script in the previous section for every recon-all subject. After steps 
     └── rh.fsaverage.curv
 ```
 
-`jacobian_white` and `pial_lgi` remain optional, separate preprocessing products. For the focused GWC + thickness + sulc + curv flow documented here, leave them out of `CAND_TYPES`. Include them only when those files have been generated and mapped independently.
+These inputs are fixed for MSSM+. No additional surface measure is part of this pipeline.
 
 ### 4. Arrange the MSSM+ dataset and metadata
 
-`pls_age_correction.py` resolves each subject as:
+The MSSM+ loader resolves subjects using this layout:
 
 ```text
 <DATA_DIR>/<Split>/<Group>/<Subject>/
 ```
 
-The simplest approach is to symlink each completed recon-all directory into that layout instead of copying it:
+Symlink the completed recon-all directories instead of duplicating them:
 
 ```bash
 mkdir -p /datasets/All/AD /datasets/All/CN
@@ -204,7 +212,7 @@ ln -s /data/recons/sub-001 /datasets/All/AD/sub-001
 ln -s /data/recons/sub-002 /datasets/All/CN/sub-002
 ```
 
-With that example layout, set `DATA_DIR: /datasets` and `SPLITS: [All]`. `INFO_PATH` must point to a CSV containing at least these columns:
+For this example, set `DATA_DIR: /datasets` and `SPLITS: [All]`. The metadata CSV at `INFO_PATH` must contain at least:
 
 ```csv
 Subject,Age,Group,Split
@@ -212,67 +220,30 @@ sub-001,74,AD,All
 sub-002,72,CN,All
 ```
 
-Subject IDs, `Group` values, and `Split` values must exactly match the directory names and the configured `GROUPS`/`SPLITS`. Both hemispheres must use fsaverage (163,842 vertices each for the default `N_VERTEX: 327684`).
+Subject IDs, group names, and split names must exactly match their directory names and configuration values. With standard `fsaverage`, each hemisphere has 163,842 vertices and the bilateral `N_VERTEX` is 327,684.
 
-### 5. Configure and generate MSSM+ maps
+### 5. Generate fixed MSSM+ maps
 
-Copy `configs/MSSMp.yaml` to an experiment-specific YAML and replace all empty/site-specific paths. The checked-in script also reads `RESULTS_ROOT` and `WEIGHTS_PATHS`, which are not present in the current template, so add them to the experiment YAML. In particular, check:
+Create an experiment-specific copy of `configs/MSSMp.yaml` and set the dataset, metadata, output, FreeSurfer, and smoothing paths for the current cohort.
 
-- `DATA_DIR`, `INFO_PATH`, `RESULTS_ROOT`, and optionally `MAP_DIR`.
-- `THICK_PREFIX: surf/reg_surf2fsaverage` and `GWR_PREFIX: mri/GWC/reg_surf2fsaverage`.
-- `CAND_PREFIX: surf`, so `sulc` and `curv` resolve to `surf/lh.fsaverage.sulc`, etc.
-- `CAND_TYPES`, `MSSM_CANDIDATES`, `N_VERTEX`, `GROUPS`, and `SPLITS` against the features and cohort actually present.
-- `SAVE: true` if intermediate dataset/reduction/correction pickle files should be retained.
+The processing sequence is fixed:
 
-For the focused pipeline that needs no `jacobian_white` or `pial_lgi`, use this feature portion:
-
-```yaml
-DATA_DIR: /datasets
-INFO_PATH: /datasets/info/info.csv
-RESULTS_ROOT: /results/my_experiment
-MAP_DIR: /results/my_experiment/map
-WEIGHTS_PATHS: []  # compatibility key read by the current script
-
-N_FEATURES: 11     # 8 GWC + thickness + sulc + curv
-N_VERTEX: 327684
-
-CAND_TYPES:
-  - sulc
-  - curv
-
-MSSM_CANDIDATES:
-  - "1111"
+```text
+MSSM representation + fsaverage sulc + fsaverage curv
+  -> vertex-wise MSSM+ integration
+  -> optional age correction
+  -> subject-level and concatenated MSSM+ surface maps
 ```
 
-With this reduced `CAND_TYPES`, the four candidate bits are:
+The resulting maps are written as left- and right-hemisphere FreeSurfer surface data. Keep the input order, vertex count, `fsaverage` template, and smoothing policy identical across all training, validation, and test subjects.
 
-| Bit | Feature block | Bilateral channels |
-| --- | --- | ---: |
-| 1 | GWC | 8 |
-| 2 | thickness | 1 |
-| 3 | sulc | 1 |
-| 4 | curv | 1 |
+### 6. Age-correction branches
 
-Thus `1111` selects GWC + thickness + sulc + curv, while `0011` selects only sulc + curv. Keep the candidate string length consistent with `CAND_TYPES`; the feature mask is constructed from that length.
-
-Then run one candidate and split from the repository root:
-
-```bash
-python scripts/pls_age_correction.py \
-  --config configs/my-MSSMp.yaml \
-  --mssm_cand 1111 \
-  --split All
-```
-
-This stage loads the fsaverage-aligned GWC/morphometry arrays, applies the candidate feature mask, performs vertex-wise PLS when more than one feature is selected, optionally removes the age effect, and writes per-subject plus concatenated FreeSurfer maps below `MAP_DIR/<Split>/<candidate>/`.
-
-Candidate strings are feature-selection masks and must match the feature order implemented by the experiment configuration/code. The checked-in `sv-vit.yaml` shows a legacy six-bit example; change its `CANDIDATES` to `1111` for the focused four-block pipeline above. Verify feature order and a small generated dataset before launching a large run.
-
-### 6. Choose the age-correction branch
+Age correction changes the values of the fixed MSSM+ map; it does not change which inputs are used.
 
 #### With age correction
 
-Use a correction model trained on an appropriate reference cohort. Configure:
+Use an age-correction model trained with the same fixed MSSM + sulc + curv definition and preprocessing settings:
 
 ```yaml
 CORRECTION: true
@@ -280,42 +251,35 @@ WEIGHTS_DIR: /path/to/age-correction/weights
 NTH: 1
 ```
 
-For candidate `1111` and `NTH: 1`, `pls_age_correction.py` expects:
-
-```text
-<WEIGHTS_DIR>/polynomial-1-post-1111.pkl
-```
-
-Generate compatible weights with `scripts/train_age_correction_model.py` and its experiment-specific training configuration before running the map-generation command. The correction cohort, feature order, candidate, polynomial degree, vertex count, and FreeSurfer template must match the application cohort.
+The correction cohort, polynomial degree, FreeSurfer version, `fsaverage` template, vertex count, smoothing, and input order must match the application cohort.
 
 #### Without age correction
 
-No correction-model training or weight file is needed. Set **both** values below:
+No age-correction training or weight file is needed. Set both values:
 
 ```yaml
 CORRECTION: false
 WEIGHTS_DIR: ""
 ```
 
-`CORRECTION: false` makes MSSM+ pass the PLS result through unchanged. `WEIGHTS_DIR` must also be empty because the current main routine tries to load a weight file whenever `WEIGHTS_DIR` is non-empty, before it reaches the correction bypass.
+`WEIGHTS_DIR` must be empty because the current main routine attempts to load a weight file whenever this value is non-empty, even when correction is disabled.
 
-The no-correction flow is therefore:
+The no-correction flow is:
 
 ```text
 recon-all
-  -> MSSM GWC/thickness fsaverage mapping
+  -> MSSM preprocessing and fsaverage mapping
   -> sulc/curv fsaverage mapping
-  -> candidate feature selection
-  -> vertex-wise PLS
-  -> uncorrected MSSM+ surface maps
+  -> fixed MSSM + sulc + curv integration
+  -> uncorrected MSSM+ maps
   -> surface statistics or SV-ViT
 ```
 
-Age should still be retained in the metadata even when correction is disabled so that it can be used as a covariate or for stratified/sensitivity analyses downstream.
+Keep age in the metadata even when correction is disabled so it remains available as a downstream covariate or for sensitivity analysis.
 
 ### 7. Downstream analysis
 
-- Surface statistics: smooth the resulting `.mssm` maps at the chosen FWHM and run the FreeSurfer GLM/permutation workflow.
-- SV-ViT: point an experiment copy of `configs/sv-vit.yaml` at the generated `lh_concat.mgh`/`rh_concat.mgh`, metadata CSV, and supervertex triangle-index CSV; set `CANDIDATES: ["1111"]` for the focused pipeline; then run `scripts/train-sv-vit.py` in the environment containing the model dependencies.
+- Surface statistics: smooth the final MSSM+ maps at the selected FWHM and run the FreeSurfer GLM/permutation workflow.
+- SV-ViT: configure `configs/sv-vit.yaml` to read the generated `lh_concat.mgh` and `rh_concat.mgh`, the metadata CSV, and the supervertex triangle-index CSV, then run `scripts/train-sv-vit.py`.
 
-Keep preprocessing choices identical across training, validation, and test subjects: FreeSurfer version/template, native-to-fsaverage registration, feature list/order, smoothing, PLS definition, and age-correction branch are all part of the model specification.
+All downstream analyses must use the same fixed MSSM + sulc + curv definition. Do not mix maps generated with different FreeSurfer templates, surface registration, smoothing, or age-correction settings.

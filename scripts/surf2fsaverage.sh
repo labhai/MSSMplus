@@ -9,7 +9,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  map_sulc_curv_to_fsaverage.sh -r <recon-all subject directory> [-f]
+  surf2fsaverage.sh -r <recon-all subject directory> [-f]
 
 Options:
   -r, --recon-dir DIR  Subject directory produced by recon-all. It must
@@ -18,7 +18,7 @@ Options:
   -h, --help           Show this help.
 
 Example:
-  bash scripts/map_sulc_curv_to_fsaverage.sh -r /data/recons/sub-001
+  bash scripts/surf2fsaverage.sh -r /data/recons/sub-001
 EOF
 }
 
