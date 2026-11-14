@@ -52,7 +52,7 @@ pip install -r requirements.txt
 
 ## Map `sulc` and `curv` to `fsaverage`
 
-MSSM+ uses one fixed input combination: **MSSM + sulc + curv**. FreeSurfer's `recon-all` produces `sulc` and `curv` in each subject's native surface space, so they must be resampled to the same `fsaverage` space used by MSSM before running MSSM+.
+MSSM+ uses input combination: **MSSM + sulc + curv**. FreeSurfer's `recon-all` produces `sulc` and `curv` in each subject's native surface space, so they must be resampled to the same `fsaverage` space used by MSSM before running MSSM+.
 
 [`scripts/surf2fsaverage.sh`](scripts/surf2fsaverage.sh) performs only this resampling. It maps:
 
@@ -119,7 +119,7 @@ done
 
 ## End-to-end workflow: MSSM to MSSM+
 
-MSSM+ is the next fixed processing stage after MSSM. The final MSSM+ input is always **MSSM + sulc + curv**.
+MSSM+ is the next processing stage after MSSM. The final MSSM+ input is always **MSSM + sulc + curv**.
 
 ```mermaid
 flowchart LR
@@ -127,7 +127,7 @@ flowchart LR
     B --> C[MSSM preprocessing]
     C --> D[MSSM maps on fsaverage]
     B --> E[sulc and curv to fsaverage]
-    D --> F[Fixed MSSM + sulc + curv integration]
+    D --> F[MSSM + sulc + curv integration]
     E --> F
     F --> G{Apply age correction?}
     G -->|yes| H[Age-corrected MSSM+ maps]
