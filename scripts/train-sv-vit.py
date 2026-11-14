@@ -177,7 +177,7 @@ class EarlyStopping:
         self.best_model = None
 
     def __call__(self, val_loss, model):
-        score = -val_loss전
+        score = -val_loss
         if self.best_score is None:
             self.best_score = score
             self.best_model = model.state_dict()
