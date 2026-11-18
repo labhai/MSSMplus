@@ -127,7 +127,7 @@ MSSM+ is the next processing stage after MSSM. The final MSSM+ input is always *
 flowchart LR
     A[T1-weighted MRI] --> B[FreeSurfer recon-all]
     B --> C[MSSM preprocessing]
-    C --> D[MSSM maps on fsaverage]
+    C --> D[GWC and CT maps on fsaverage]
     B --> E[sulc and curv to fsaverage]
     D --> F[MSSM + sulc + curv integration]
     E --> F
@@ -225,15 +225,7 @@ sub-002,72,CN,All
 Subject IDs, group names, and split names must exactly match their directory names and configuration values. With standard `fsaverage`, each hemisphere has 163,842 vertices and the bilateral `N_VERTEX` is 327,684.
 
 The default binary comparison is AD versus CN. To use another binary
-comparison, change both `GROUPS` and `LABEL_MAP`; the group mapped to `0` is
-treated as the control/reference group:
-
-```yaml
-GROUPS: [ADHD, HC]
-LABEL_MAP:
-  HC: 0
-  ADHD: 1
-```
+comparison, change both `GROUPS` and `LABEL_MAP`.
 
 Use the same `LABEL_MAP` in `configs/sv-vit.yaml` so MSSM+ generation and
 SV-ViT assign identical targets.
@@ -293,9 +285,7 @@ EXPECTED_AGE_REFERENCE_PER_STRATUM: 25
 POLYNOMIAL_DEGREE: 1
 ```
 
-The script fits PLS-DA on the configured target cohort, applies that same
-transform to the independent reference cohort, fits the vertex-wise polynomial
-age model on the reference scores, and residualizes the target scores. The
+When age correction is enabled, an independent CN reference cohort is used to estimate and remove age-related effects from the MSSM+ maps. The
 reference cohort must belong to the group mapped to `0` in `LABEL_MAP` and
 match the configured count. For the default AD/CN setting, the reference CSV
 therefore also needs `Vendor` and `Sex`; the script enforces 25 CN participants
@@ -330,8 +320,7 @@ Keep age in the metadata even when correction is disabled so it remains availabl
 
 All downstream analyses must use the same fixed MSSM + sulc + curv definition. Do not mix maps generated with different FreeSurfer templates, surface registration, smoothing, or age-correction settings.
 
-For classification, fit PLS-DA on the training data and use the fitted model to
-transform the validation and test data.
+For classification, PLS should be fitted separately within each fold.
 
 ### 8. SSVM preprocessing and SV-ViT
 
@@ -381,9 +370,4 @@ Set the cohort paths in the configuration and run from the repository root:
 python scripts/train-sv-vit.py --config configs/sv-vit.yaml
 ```
 
-Weights & Biases logging is disabled by default so the command does not require
-an account. Set `WANDB_MODE: online` when remote experiment logging is desired.
-
-The loader validates the SSVM and input shapes before training. It reads the fixed MSSM+ map (`GWCs + CT + sulc + curv`), gathers all 441 values for every supervertex, concatenates LH and RH along the token dimension, and passes `(B, 1, 2560, 441)` directly to SV-ViT.
-
-Use age-corrected, unsmoothed residual maps for SV-ViT classification. Apply 10 mm FWHM smoothing only for group-level surface statistics.
+Use (age-corrected,) unsmoothed residual maps for SV-ViT classification.
