@@ -5,6 +5,6 @@ nibabel
 matplotlib
 scikit-learn
 torch
-einops
-vit-pytorch
+einops==0.8.1
+vit-pytorch==1.10.1
 wandb

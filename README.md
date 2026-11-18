@@ -1,22 +1,24 @@
 # MSSM\+
-Improved Multiscale Structural Mapping with Surface Vision Transformer for the Detection of Alzheimer's Disease Neurodegeneration Repository
+Improved Multiscale Structural Mapping with Supervertex Vision Transformer for the Detection of Alzheimer's Disease Neurodegeneration Repository
 
-This repository contains code for the Supervertex Vision Transformer (SV-ViT) and patches map partitioning cortical surface.
+This repository contains the MSSM+ generation, SSVM preprocessing, and Supervertex Vision Transformer (SV-ViT) training pipeline.
 
 ---
 
 ## Repository structure
 
 - `configs/`
-  - `MSSMp.yaml`: configuration for cortical surface partitioning and CSV-map generation.
+  - `MSSMp.yaml`: configuration for MSSM+ map generation and optional age correction.
   - `sv-vit.yaml`: configuration for training/evaluation.
+- `models/`
+  - `sit.py`: cited SiT backbone implementation (Dahan et al., 2022).
+  - `svvit.py`: SV-ViT wrapper that validates the SSVM input shape.
 - `data/`
-  - `triangle_indices_ico_7_sub_ico_3.csv`: SV maps (concatenated lh and rh hemisphere).
+  - `ssvm_ico7_sub_ico3.npy`: bilateral SSVM indices with shape `(2560, 147, 3)`.
 - `scripts/`
   - `pls_age_correction.py`: perform the MSSM+ procedure with optional age correction.
+  - `run_mssmplus.sh`: fixed MSSM+ command-line entry point.
   - `surf2fsaverage.sh`: map FreeSurfer `sulc` and `curv` to `fsaverage`.
-  - `test.sh` `test_0_mssm.sh`: MSSM+ pipeline with group analysis.
-  - `train_age_correction_model.py`: train age-correction models.
   - `train-sv-vit.py`: train and evaluate SV-ViT.
 - `requirements.txt`: minimal Python dependencies.
 
@@ -32,7 +34,7 @@ pip install -r requirements.txt
 
 ---
 
-## 📖 BibTeX (to cite our paper)
+## Citation
 
 ```bibtex
 @article{baek2026mssmplus,
@@ -59,7 +61,7 @@ MSSM+ uses input combination: **MSSM + sulc + curv**. FreeSurfer's `recon-all` p
 - `lh.sulc` and `rh.sulc`
 - `lh.curv` and `rh.curv`
 
-It does not process `jacobian_white`, `pial_lgi`, thickness, or GWC files.
+It does not modify thickness or GWC files.
 
 ### Requirements
 
@@ -140,7 +142,7 @@ The source repositories are [jibikbam/MSSM](https://github.com/jibikbam/MSSM) an
 
 ### 1. Run FreeSurfer
 
-Use the same FreeSurfer version and `fsaverage` template for every subject.
+Use FreeSurfer 7.4.1 and the same `fsaverage` template for every subject.
 
 ```bash
 export SUBJECTS_DIR=/data/recons
@@ -222,9 +224,29 @@ sub-002,72,CN,All
 
 Subject IDs, group names, and split names must exactly match their directory names and configuration values. With standard `fsaverage`, each hemisphere has 163,842 vertices and the bilateral `N_VERTEX` is 327,684.
 
+The default binary comparison is AD versus CN. To use another binary
+comparison, change both `GROUPS` and `LABEL_MAP`; the group mapped to `0` is
+treated as the control/reference group:
+
+```yaml
+GROUPS: [ADHD, HC]
+LABEL_MAP:
+  HC: 0
+  ADHD: 1
+```
+
+Use the same `LABEL_MAP` in `configs/sv-vit.yaml` so MSSM+ generation and
+SV-ViT assign identical targets.
+
 ### 5. Generate fixed MSSM+ maps
 
-Create an experiment-specific copy of `configs/MSSMp.yaml` and set the dataset, metadata, output, FreeSurfer, and smoothing paths for the current cohort.
+Create a cohort-specific copy of `configs/MSSMp.yaml` and set `DATA_DIR`,
+`INFO_PATH`, and `MAP_DIR`. The loader always constructs exactly 11 bilateral
+features in this order:
+
+```text
+8 GWCs + CT + Sulc + Curv
+```
 
 The processing sequence is fixed:
 
@@ -237,32 +259,56 @@ MSSM representation + fsaverage sulc + fsaverage curv
 
 The resulting maps are written as left- and right-hemisphere FreeSurfer surface data. Keep the input order, vertex count, `fsaverage` template, and smoothing policy identical across all training, validation, and test subjects.
 
+Run all configured splits, or one named split:
+
+```bash
+bash scripts/run_mssmplus.sh --config configs/MSSMp.yaml
+bash scripts/run_mssmplus.sh --config configs/MSSMp.yaml --split All
+```
+
+Outputs are written to `<MAP_DIR>/<Split>/MSSMplus/`. Alongside
+`lh_concat.mgh` and `rh_concat.mgh`, `subjects.csv` records the exact MGH frame
+order. SV-ViT validates this sidecar against the metadata before assigning
+labels.
+
 ### 6. Age-correction branches
 
 Age correction changes the values of the fixed MSSM+ map; it does not change which inputs are used.
 
 #### With age correction
 
-Use an age-correction model trained with the same fixed MSSM + sulc + curv definition and preprocessing settings:
+The reference configuration fits polynomial age models using an independent
+set of 150 CN participants. Configure that cohort with the same fixed inputs
+and directory layout:
 
 ```yaml
 CORRECTION: true
-WEIGHTS_DIR: /path/to/age-correction/weights
-NTH: 1
+AGE_REFERENCE_DATA_DIR: /datasets/age-reference
+AGE_REFERENCE_INFO_PATH: /datasets/age-reference/info.csv
+AGE_REFERENCE_SPLIT: AgeReference
+EXPECTED_AGE_REFERENCE_SIZE: 150
+AGE_REFERENCE_STRATIFY_COLUMNS: [Vendor, Sex]
+EXPECTED_AGE_REFERENCE_STRATA: 6
+EXPECTED_AGE_REFERENCE_PER_STRATUM: 25
+POLYNOMIAL_DEGREE: 1
 ```
 
-The correction cohort, polynomial degree, FreeSurfer version, `fsaverage` template, vertex count, smoothing, and input order must match the application cohort.
+The script fits PLS-DA on the configured target cohort, applies that same
+transform to the independent reference cohort, fits the vertex-wise polynomial
+age model on the reference scores, and residualizes the target scores. The
+reference cohort must belong to the group mapped to `0` in `LABEL_MAP` and
+match the configured count. For the default AD/CN setting, the reference CSV
+therefore also needs `Vendor` and `Sex`; the script enforces 25 CN participants
+in each of the six vendor-by-sex strata. These subjects must not be reused in
+downstream statistics or classification.
 
 #### Without age correction
 
-No age-correction training or weight file is needed. Set both values:
+No reference cohort is loaded. Set:
 
 ```yaml
 CORRECTION: false
-WEIGHTS_DIR: ""
 ```
-
-`WEIGHTS_DIR` must be empty because the current main routine attempts to load a weight file whenever this value is non-empty, even when correction is disabled.
 
 The no-correction flow is:
 
@@ -280,6 +326,64 @@ Keep age in the metadata even when correction is disabled so it remains availabl
 ### 7. Downstream analysis
 
 - Surface statistics: smooth the final MSSM+ maps at the selected FWHM and run the FreeSurfer GLM/permutation workflow.
-- SV-ViT: configure `configs/sv-vit.yaml` to read the generated `lh_concat.mgh` and `rh_concat.mgh`, the metadata CSV, and the supervertex triangle-index CSV, then run `scripts/train-sv-vit.py`.
+- SV-ViT classification: use unsmoothed, age-corrected residual maps. Configure `configs/sv-vit.yaml` to read `lh_concat.mgh`, `rh_concat.mgh`, the metadata CSV, and the SSVM NPY.
 
 All downstream analyses must use the same fixed MSSM + sulc + curv definition. Do not mix maps generated with different FreeSurfer templates, surface registration, smoothing, or age-correction settings.
+
+For classification, fit PLS-DA on the training data and use the fitted model to
+transform the validation and test data.
+
+### 8. SSVM preprocessing and SV-ViT
+
+The SSVM contains 1,280 ROI-constrained, edge-connected supervertices per hemisphere. The supplied bilateral index array has shape:
+
+```text
+(2560 supervertices, 147 faces, 3 vertex positions)
+```
+
+The last two dimensions are flattened without spatial averaging. The resulting model input is:
+
+```text
+LH MSSM+ residual map ─┐
+                      ├─ SSVM gather ─> (subjects, 1, 2560, 441)
+RH MSSM+ residual map ─┘
+```
+
+The repeated vertex indices created by adjacent faces are intentional: the input preserves the three vertex positions of every retained face. Do not apply a patch-wise mean, max, or other hand-crafted pooling before the learned linear embedding.
+
+SV-ViT extends SiT by replacing its surface patching with SSVM. Accordingly,
+[`models/sit.py`](models/sit.py)
+contains the SiT backbone and [`models/svvit.py`](models/svvit.py) is a thin
+wrapper that validates the SSVM tensor before calling `SiT`:
+
+```text
+441 values per supervertex
+  -> learned linear embedding
+  -> CLS token + learned positional embedding
+  -> stacked Transformer encoders
+  -> CLS token
+  -> LayerNorm + binary classification head
+```
+
+The matching model settings are fixed in `configs/sv-vit.yaml`:
+
+```yaml
+MODEL_CONFIG:
+  pool: "cls"
+  num_patches: 2560
+  num_channels: 1
+  num_vertices: 441
+```
+
+Set the cohort paths in the configuration and run from the repository root:
+
+```bash
+python scripts/train-sv-vit.py --config configs/sv-vit.yaml
+```
+
+Weights & Biases logging is disabled by default so the command does not require
+an account. Set `WANDB_MODE: online` when remote experiment logging is desired.
+
+The loader validates the SSVM and input shapes before training. It reads the fixed MSSM+ map (`GWCs + CT + sulc + curv`), gathers all 441 values for every supervertex, concatenates LH and RH along the token dimension, and passes `(B, 1, 2560, 441)` directly to SV-ViT.
+
+Use age-corrected, unsmoothed residual maps for SV-ViT classification. Apply 10 mm FWHM smoothing only for group-level surface statistics.

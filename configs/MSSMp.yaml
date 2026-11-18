@@ -1,106 +1,68 @@
-DATA_DIR: "" # "/datasets/All"
-INFO_DIR: "" # "/datasets/All/info"
-INFO_PATH: "" # "/All/info/info.csv"
-RESULTS_DIR: "" # "/results/project/fwhm"
-STATS_DIR: "" # "/results/project/fwhm/stats"
-DATASET_PATH: null
-DATASET_FILE: dataset.pkl
-CORRECTION_FILE: correction.pkl
-N_FEATURES: 13
-N_VERTEX: 327684
-NTH: 1
-SCALER_THRESHOLD: 1
-MAX_WORKERS: 8
-THRESHOLD: 2
-
-PROJECT: "project"
-
-FWHM: 0
-
-ADD: 0
-
-CORRECTION: true
-FEATURE_EXTRACTION_METHOD: "PLS"
-REDUCTION_FILE: "reduction.pkl"
-FEATURE_EXTRACTION_DIR: "MSSM"
-RESULT_TYPE: ".mssm"
-
-THICK_PREFIX: "surf/reg_surf2fsaverage"
-GWR_PREFIX: "mri/GWC/reg_surf2fsaverage"
-CAND_PREFIX: "surf"
-STAT_FILE: "stat.txt"
-
-CORRECTION_DIMENSIONS:
-- 1 # GWCs
-- 1
-- 1
-- 1
-- 1
-- 1
-- 1
-- 1
-- 1 # CT
-- 1 # Sulc
-- 1 # Jacobian
-- 1 # Curv
-- 1 # LGI
-
-WEIGHTS_DIR: "/datasets/All/Age_Correction/weights"
-
-MSSM_CANDIDATES:
-  - "100110"
-  - "101100"
-  - "101101"
-  - "101110"
-  - "101111"
-  - "111100"
-  - "111101"
-  - "111110"
-  - "111111"
-
-CT_TYPES:
-- lh.thickness
-- rh.thickness
-
-GWR_TYPES:
-- lh_subcortwm-0.5divgm.2.nii.gz
-- rh_subcortwm-0.5divgm.2.nii.gz
-- lh_subcortwm-1divgm.2.nii.gz
-- rh_subcortwm-1divgm.2.nii.gz
-- lh_subcortwm-0.5divgm.4.nii.gz
-- rh_subcortwm-0.5divgm.4.nii.gz
-- lh_subcortwm-1divgm.4.nii.gz
-- rh_subcortwm-1divgm.4.nii.gz
-- lh_subcortwm-0.5divgm.6.nii.gz
-- rh_subcortwm-0.5divgm.6.nii.gz
-- lh_subcortwm-1divgm.6.nii.gz
-- rh_subcortwm-1divgm.6.nii.gz
-- lh_subcortwm-0.5divgm.8.nii.gz
-- rh_subcortwm-0.5divgm.8.nii.gz
-- lh_subcortwm-1divgm.8.nii.gz
-- rh_subcortwm-1divgm.8.nii.gz
-
-CAND_TYPES:
-- "sulc"
-- "pial_lgi"
-- "jacobian_white"
-- "curv"
-
-MEDIALWALL_MASKS:
-- fsaverage/label/lh.Medial_wall.label
-- fsaverage/label/rh.Medial_wall.label
+# Target AD/CN cohort. Layout: <DATA_DIR>/<Split>/<Group>/<Subject>/
+DATA_DIR: ""
+INFO_PATH: ""
+MAP_DIR: ""
 
 SPLITS:
-- "All"
-
+  - "All"
 GROUPS:
-- "AD"
-- "CN"
+  - "AD"
+  - "CN"
+# Binary diagnosis labels used by vertex-wise PLS-DA. Change both GROUPS and
+# LABEL_MAP to reuse the pipeline for another binary comparison (for example,
+# ADHD/HC). The group mapped to 0 is also used as the healthy age-reference
+# group when CORRECTION is enabled.
+LABEL_MAP:
+  CN: 0
+  AD: 1
 
-HEMIS:
-- "lh"
-- "rh"
+# fsaverage resolution (163,842 vertices per hemisphere).
+N_VERTEX: 327684
+OUTPUT_NAME: "MSSMplus"
 
-METHODS:
-- "perm"
-#- "cache"
+# Fixed production flow: 8 GWCs + CT + Sulc + Curv -> vertex-wise PLS-DA.
+# LH/RH pairs correspond to 0.5/1.0-mm WM and 20/40/60/80% GM depths.
+GWR_PREFIX: "mri/GWC/reg_surf2fsaverage"
+GWR_TYPES:
+  - "lh_subcortwm-0.5divgm.2.nii.gz"
+  - "rh_subcortwm-0.5divgm.2.nii.gz"
+  - "lh_subcortwm-1divgm.2.nii.gz"
+  - "rh_subcortwm-1divgm.2.nii.gz"
+  - "lh_subcortwm-0.5divgm.4.nii.gz"
+  - "rh_subcortwm-0.5divgm.4.nii.gz"
+  - "lh_subcortwm-1divgm.4.nii.gz"
+  - "rh_subcortwm-1divgm.4.nii.gz"
+  - "lh_subcortwm-0.5divgm.6.nii.gz"
+  - "rh_subcortwm-0.5divgm.6.nii.gz"
+  - "lh_subcortwm-1divgm.6.nii.gz"
+  - "rh_subcortwm-1divgm.6.nii.gz"
+  - "lh_subcortwm-0.5divgm.8.nii.gz"
+  - "rh_subcortwm-0.5divgm.8.nii.gz"
+  - "lh_subcortwm-1divgm.8.nii.gz"
+  - "rh_subcortwm-1divgm.8.nii.gz"
+THICK_PREFIX: "surf/reg_surf2fsaverage"
+SURFACE_PREFIX: "surf"
+
+MEDIALWALL_MASKS:
+  - "fsaverage/label/lh.Medial_wall.label"
+  - "fsaverage/label/rh.Medial_wall.label"
+
+# Fit the polynomial age model on an independent 150-CN cohort and residualize
+# the PLS-DA score. For another binary comparison, the
+# reference cohort is the group mapped to 0 in LABEL_MAP. It must use the same
+# directory layout and the same fixed eleven input features.
+CORRECTION: true
+AGE_REFERENCE_DATA_DIR: ""
+AGE_REFERENCE_INFO_PATH: ""
+AGE_REFERENCE_SPLIT: "AgeReference"
+EXPECTED_AGE_REFERENCE_SIZE: 150
+AGE_REFERENCE_STRATIFY_COLUMNS:
+  - "Vendor"
+  - "Sex"
+EXPECTED_AGE_REFERENCE_STRATA: 6
+EXPECTED_AGE_REFERENCE_PER_STRATUM: 25
+POLYNOMIAL_DEGREE: 1
+
+# Small vertex blocks avoid copying a full cortical array to every worker.
+VERTEX_BLOCK_SIZE: 512
+MAX_WORKERS: 8

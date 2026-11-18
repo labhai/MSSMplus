@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 # Map the native FreeSurfer sulc and curv morphometry files of one recon-all
-# subject to the fsaverage surface.  This intentionally does not process
-# jacobian_white, pial_lgi, thickness, or MSSM GWC maps.
+# subject to the fsaverage surface.
 
 set -euo pipefail
 
@@ -72,8 +71,11 @@ if [[ ! -e "$SUBJECTS_DIR/fsaverage" ]]; then
   [[ -n "${FREESURFER_HOME:-}" ]] || die "SUBJECTS_DIR/fsaverage is absent and FREESURFER_HOME is not set."
   FSAVERAGE_SOURCE="$FREESURFER_HOME/subjects/fsaverage"
   [[ -d "$FSAVERAGE_SOURCE" ]] || die "fsaverage template not found: $FSAVERAGE_SOURCE"
-  ln -s "$FSAVERAGE_SOURCE" "$SUBJECTS_DIR/fsaverage"
-  printf 'Linked fsaverage: %s -> %s\n' "$SUBJECTS_DIR/fsaverage" "$FSAVERAGE_SOURCE"
+  if ln -s "$FSAVERAGE_SOURCE" "$SUBJECTS_DIR/fsaverage" 2>/dev/null; then
+    printf 'Linked fsaverage: %s -> %s\n' "$SUBJECTS_DIR/fsaverage" "$FSAVERAGE_SOURCE"
+  elif [[ ! -d "$SUBJECTS_DIR/fsaverage" ]]; then
+    die "failed to create fsaverage link: $SUBJECTS_DIR/fsaverage"
+  fi
 fi
 [[ -d "$SUBJECTS_DIR/fsaverage" ]] || die "fsaverage target is not a directory: $SUBJECTS_DIR/fsaverage"
 
